@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  .scratch-ticket {
+    width: min(90vw, 420px);
+    aspect-ratio: 1.7 / 1;
+    margin: 40px auto;
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    background: linear-gradient(135deg, #fff7c2, #ffd84d, #fff0a0);
+  }
+
+  .winning-message {
+    position: absolute;
+    inset: 0;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    color: #8a5700;
+    background: #fff9dc;
+  }
+
+  .winning-message h2 {
+    margin: 0 0 12px;
+    font-size: clamp(22px, 6vw, 32px);
+  }
+
+  .winning-message p {
+    margin: 0;
+    font-size: clamp(14px, 3.5vw, 18px);
+    line-height: 1.4;
+    font-weight: bold;
+  }
+
+  .promo-code {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #d89b00;
+    color: white;
+    font-size: 20px;
+    letter-spacing: 2px;
+  }
+
+  #scratchCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .instructions {
+    position: absolute;
+    z-index: 5;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-family: Arial, sans-serif;
+    font-weight: 900;
+    font-size: clamp(25px, 8vw, 45px);
+    color: #8c5a00;
+    text-shadow: 1px 1px 0 #fff4a8;
+  }
+
+  .instructions.hidden {
+    display: none;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="scratch-ticket" id="ticket">
+
+  <div class="winning-message">
+    <h2>🎉 Bravo !</h2>
+
+    <p>
+      Tu as gagné 10€ de réduction grâce aux astuces de rat d’Alex
+      avec le code promo OUIGO :
+    </p>
+
+    <span class="promo-code">APP10</span>
+  </div>
+
+  <div class="instructions" id="instructions">
+    GRATTE ICI !
+  </div>
+
+  <canvas id="scratchCanvas"></canvas>
+
+</div>
+
+<script>
+const ticket = document.getElementById("ticket");
+const canvas = document.getElementById("scratchCanvas");
+const ctx = canvas.getContext("2d");
+const instructions = document.getElementById("instructions");
+
+let isScratching = false;
+
+function setupCanvas() {
+  const rect = ticket.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const gradient = ctx.createLinearGradient(
+    0, 0, rect.width, rect.height
+  );
+
+  gradient.addColorStop(0, "#b8860b");
+  gradient.addColorStop(0.25, "#ffd700");
+  gradient.addColorStop(0.5, "#fff0a0");
+  gradient.addColorStop(0.75, "#d4af37");
+  gradient.addColorStop(1, "#ffd700");
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, rect.width, rect.height);
+
+  ctx.globalAlpha = 0.25;
+
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random() * rect.width;
+    const y = Math.random() * rect.height;
+    const size = Math.random() * 2 + 0.5;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x, y, size, size);
+  }
+
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = "#fff4a8";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(3, 3, rect.width - 6, rect.height - 6);
+}
+
+function getPosition(event) {
+  const rect = canvas.getBoundingClientRect();
+
+  let clientX;
+  let clientY;
+
+  if (event.touches && event.touches.length) {
+    clientX = event.touches[0].clientX;
+    clientY = event.touches[0].clientY;
+  } else {
+    clientX = event.clientX;
+    clientY = event.clientY;
+  }
+
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  };
+}
+
+function scratch(event) {
+  if (!isScratching) return;
+
+  event.preventDefault();
+
+  const pos = getPosition(event);
+
+  ctx.globalCompositeOperation = "destination-out";
+
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 24, 0, Math.PI * 2);
+  ctx.fill();
+
+  instructions.classList.add("hidden");
+
+  checkScratchPercentage();
+}
+
+function checkScratchPercentage() {
+  const pixels = ctx.getImageData(
+    0, 0, canvas.width, canvas.height
+  ).data;
+
+  let transparent = 0;
+  let total = 0;
+
+  for (let i = 3; i < pixels.length; i += 16) {
+    total++;
+
+    if (pixels[i] < 50) {
+      transparent++;
+    }
+  }
+
+  const percentage = transparent / total * 100;
+
+  if (percentage > 45) {
+    revealTicket();
+  }
+}
+
+function revealTicket() {
+  canvas.style.transition = "opacity 0.5s ease";
+  canvas.style.opacity = "0";
+
+  setTimeout(() => {
+    canvas.remove();
+  }, 500);
+}
+
+canvas.addEventListener("mousedown", (event) => {
+  isScratching = true;
+  scratch(event);
+});
+
+canvas.addEventListener("mousemove", scratch);
+
+window.addEventListener("mouseup", () => {
+  isScratching = false;
+});
+
+canvas.addEventListener("touchstart", (event) => {
+  isScratching = true;
+  scratch(event);
+}, { passive: false });
+
+canvas.addEventListener("touchmove", scratch, {
+  passive: false
+});
+
+window.addEventListener("touchend", () => {
+  isScratching = false;
+});
+
+setupCanvas();
+
+window.addEventListener("resize", setupCanvas);
+</script>
+
+</body>
+</html>
